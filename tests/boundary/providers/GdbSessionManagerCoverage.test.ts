@@ -3070,6 +3070,35 @@ it("completes an MI record split after a chunk without a newline", async () => {
     expect(result.value.result.records).toContain('=thread-created,id="1"');
 });
 
+it("correlates GDB command output when shell commands omit a trailing newline", async () => {
+  const fake = createFakeSpawner((child, token, command) => {
+    if (command.includes("auto-load off")) {
+      child.stdout.write(`${token}^done\n`);
+      return;
+    }
+    if (command.includes("shell printf abc")) {
+      child.stdout.write(`abc${token}^done\n`);
+      return;
+    }
+    child.stdout.write(`${token}^done\n`);
+  });
+  const manager = managerWithFakeSpawner(fake.spawnProcess);
+  const started = await expectGdbSessionStarted(manager);
+
+  const result = await manager.execute(
+    started.value.session_id,
+    "shell printf abc",
+  );
+  expect(result.ok).toBe(true);
+  if (result.ok) {
+    expect(result.value.result.completion_status).toBe("complete");
+    expect(result.value.result.records).toEqual([
+      "abc",
+      expect.stringMatching(/^\d+\^done$/u),
+    ]);
+  }
+});
+
 it("preserves the protocol failure when an incomplete stop adds uncertainty", async () => {
   let stopCalls = 0;
   const fake = createFakeSpawner();

@@ -1563,7 +1563,25 @@ export class GdbSessionManager {
       session.bufferTailBytes = 0;
       session.bufferBytes = 0;
       if (invalidUtf8) session.invalidUtf8Observed = true;
-      if (line.length > 0) lines.push({ value: line, invalidUtf8 });
+      if (line.length > 0) {
+        const match =
+          /(?:^|[^\d])(\d+\^(?:done|running|connected|error|exit)(?:,|$))/u.exec(
+            line,
+          );
+        if (match !== null && match.index !== undefined) {
+          const miIndex =
+            match.index +
+            (match[0].startsWith("^") || /^\d/u.test(match[0]) ? 0 : 1);
+          if (miIndex > 0) {
+            lines.push({ value: line.slice(0, miIndex), invalidUtf8 });
+            lines.push({ value: line.slice(miIndex), invalidUtf8 });
+          } else {
+            lines.push({ value: line, invalidUtf8 });
+          }
+        } else {
+          lines.push({ value: line, invalidUtf8 });
+        }
+      }
       offset = newline + 1;
     }
     for (const { value: line } of lines) {
